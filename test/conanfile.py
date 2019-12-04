@@ -1,23 +1,22 @@
-from conans.model.conan_file import ConanFile
-from conans import CMake
+from conans import ConanFile, CMake, tools, RunEnvironment
 import os
 
 
 class DefaultNameConan(ConanFile):
-    name = "DefaultName"
-    version = "0.1"
-    settings = "os", "compiler", "arch", "build_type"
+    settings = "os", "compiler", "build_type", "arch"
     generators = "cmake"
-    requires = "hwloc/1.11.1@lasote/stable"
 
     def build(self):
-        cmake = CMake(self.settings)
-        self.run('cmake . %s' % cmake.command_line)
-        self.run("cmake --build . %s" % cmake.build_config)
+        cmake = CMake(self)
+        cmake.configure()
+        cmake.build()
 
-    def imports(self):
-        self.copy(pattern="*.dll", dst="bin", src="bin")
-        self.copy(pattern="*.dylib", dst="bin", src="lib")
-        
     def test(self):
-        self.run("cd bin && .%smain" % os.sep)
+        with tools.environment_append(RunEnvironment(self).vars):
+            bin_path = os.path.join("bin", "main")
+            if self.settings.os == "Windows":
+                self.run(bin_path)
+            elif self.settings.os == "Macos":
+                self.run("DYLD_LIBRARY_PATH=%s %s" % (os.environ.get('DYLD_LIBRARY_PATH', ''), bin_path))
+            else:
+                self.run("LD_LIBRARY_PATH=%s %s" % (os.environ.get('LD_LIBRARY_PATH', ''), bin_path))

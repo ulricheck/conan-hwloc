@@ -1,27 +1,27 @@
 from conans import ConanFile
 import os
-from conans.tools import download, unzip, replace_in_file
-from conans import CMake
+from conans.tools import download, unzip, replace_in_file, chdir
+from conans import CMake, MSBuild
 
 
 class HWLOCConan(ConanFile):
     name = "hwloc"
-    version = "1.11.1"
+    version = "2.1.0"
     ZIP_FOLDER_NAME = "hwloc-%s" % version
     settings = "os", "arch", "compiler", "build_type"
     options = {"shared": [True, False]}
     default_options = "shared=False"
     exports = ["CMakeLists.txt", "FindHwloc.cmake"]
-    url="http://github.com/lasote/conan-hwloc"
+    url="http://github.com/ulricheck/conan-hwloc"
     
-    def system_requirements(self):
-        self.global_system_requirements=True
-        if self.settings.os == "Linux":
-            self.output.warn("'libudev' library is required in your computer. Enter sudo password if required...")
-            self.run("sudo apt-get install libudev0 libudev0:i386 || true ")
-            self.run("sudo apt-get install libudev1 libudev1:i386 || true ")
-            self.run("sudo apt-get install libudev-dev libudev-dev:i386 || true ")
-            self.run("sudo apt-get install libxml2-dev libxml2-dev:i386 || true ")
+    # def system_requirements(self):
+    #     self.global_system_requirements=True
+    #     if self.settings.os == "Linux":
+    #         self.output.warn("'libudev' library is required in your computer. Enter sudo password if required...")
+    #         self.run("sudo apt-get install libudev0 libudev0:i386 || true ")
+    #         self.run("sudo apt-get install libudev1 libudev1:i386 || true ")
+    #         self.run("sudo apt-get install libudev-dev libudev-dev:i386 || true ")
+    #         self.run("sudo apt-get install libxml2-dev libxml2-dev:i386 || true ")
 
     def conan_info(self):
         # We don't want to change the package for each compiler version but
@@ -61,11 +61,14 @@ class HWLOCConan(ConanFile):
             file_path = "%s/contrib/windows/libhwloc.vcxproj" % self.ZIP_FOLDER_NAME
             # Adjust runtime in project solution
             replace_in_file(file_path, "MultiThreadedDLL", runtime)
-            
+            replace_in_file(file_path, "<PlatformToolset>v142</PlatformToolset>", "<PlatformToolset>v141</PlatformToolset>")
+            replace_in_file(file_path, "<WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>", "<WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>")
             platform, configuration = self.visual_platform_and_config()
-            msbuild = 'Msbuild.exe hwloc.sln /m /t:libhwloc /p:Configuration=%s;Platform="%s"' % (configuration, platform)
-            self.output.info(msbuild)
-            self.run("cd %s/contrib/windows/ &&  %s" % (self.ZIP_FOLDER_NAME, msbuild))
+            toolset = self.settings.get_safe("compiler.toolset")
+            slnpath = os.path.join(self.ZIP_FOLDER_NAME, "contrib", "windows")
+            with chdir(slnpath):
+                msbuild = MSBuild(self)
+                msbuild.build( "hwloc.sln", targets=["libhwloc"], build_type=configuration, arch=platform, verbosity="normal")
 
     def visual_platform_and_config(self):
         platform = "Win32" if self.settings.arch == "x86" else "x64"
@@ -108,4 +111,4 @@ class HWLOCConan(ConanFile):
             if self.options.shared: 
                 self.cpp_info.libs = ["libhwloc"]
             else:
-                self.cpp_info.libs = ["libhwloc-5"]
+                self.cpp_info.libs = ["libhwloc-15"]
